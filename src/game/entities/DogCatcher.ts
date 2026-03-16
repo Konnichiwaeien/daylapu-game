@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { ENEMY } from '@/lib/constants';
 
 export class DogCatcher extends Phaser.Physics.Arcade.Sprite {
   health = 2;
@@ -20,7 +21,7 @@ export class DogCatcher extends Phaser.Physics.Arcade.Sprite {
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setGravityY(600);
     body.setCollideWorldBounds(true);
-    body.setSize(20, 38);
+    body.setSize(ENEMY.width - 8, ENEMY.height - 4);
   }
 
   update() {

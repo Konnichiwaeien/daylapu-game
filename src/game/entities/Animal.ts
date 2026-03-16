@@ -1,13 +1,13 @@
 import * as Phaser from 'phaser';
-import { COLORS } from '@/lib/constants';
 
 export class Animal extends Phaser.Physics.Arcade.Sprite {
   animalId: string;
   animalType: 'puppy' | 'kitten';
   animalName: string;
   isRescued: boolean = false;
-  private baseY: number = 0;
   private rescueIndicator: Phaser.GameObjects.Text | null = null;
+  private bobOffset: number = 0;
+  private bobBase: number;
 
   constructor(
     scene: Phaser.Scene,
@@ -22,27 +22,24 @@ export class Animal extends Phaser.Physics.Arcade.Sprite {
     this.animalId = id;
     this.animalType = type;
     this.animalName = name;
+    this.bobBase = y;
 
     scene.add.existing(this);
-    scene.physics.add.existing(this, true); // static body — no gravity conflicts
-
-    // Небольшое покачивание (без физики, только визуальное)
-    this.baseY = y;
-    scene.tweens.add({
-      targets: this,
-      y: y - 4,
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
+    scene.physics.add.existing(this, true);
 
     // Подсказка "E"
-    this.rescueIndicator = scene.add.text(x, y - 20, '[E]', {
+    this.rescueIndicator = scene.add.text(x, y - 26, '[E]', {
       fontSize: '10px',
       color: '#FFD700',
       fontStyle: 'bold',
     }).setOrigin(0.5).setAlpha(0);
+  }
+
+  // Вызывать из GameScene.update() — покачивание без tweens
+  updateBob(time: number) {
+    if (this.isRescued) return;
+    this.bobOffset = Math.sin(time * 0.003) * 4;
+    this.y = this.bobBase + this.bobOffset;
   }
 
   showRescueHint() {
@@ -63,9 +60,6 @@ export class Animal extends Phaser.Physics.Arcade.Sprite {
     this.isRescued = true;
     this.hideRescueHint();
 
-    // Остановить все текущие tweens (bobbing и т.д.)
-    scene.tweens.killTweensOf(this);
-
     // Анимация спасения — текст
     const text = scene.add.text(this.x, this.y - 30, `${this.animalName} спасён!`, {
       fontSize: '14px',
@@ -83,7 +77,7 @@ export class Animal extends Phaser.Physics.Arcade.Sprite {
       onComplete: () => text.destroy(),
     });
 
-    // Животное исчезает
+    // Животное исчезает — после анимации полностью убираем
     scene.tweens.add({
       targets: this,
       alpha: 0,
@@ -95,7 +89,10 @@ export class Animal extends Phaser.Physics.Arcade.Sprite {
         this.rescueIndicator = null;
         this.setActive(false);
         this.setVisible(false);
-        this.body?.enable && ((this.body as Phaser.Physics.Arcade.Body).enable = false);
+        const body = this.body as Phaser.Physics.Arcade.StaticBody;
+        if (body) body.enable = false;
+        // Убираем из display list чтобы не было мерцания
+        this.setPosition(-1000, -1000);
       },
     });
   }

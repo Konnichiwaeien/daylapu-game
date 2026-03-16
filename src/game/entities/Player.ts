@@ -32,7 +32,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.setCollideWorldBounds(true);
     const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setSize(PLAYER.width - 4, PLAYER.height - 2);
+    body.setSize(PLAYER.width - 8, PLAYER.height - 4);
     body.setGravityY(PLAYER.gravity);
 
     // Создаём анимации

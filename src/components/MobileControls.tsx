@@ -89,6 +89,12 @@ export default function MobileControls() {
         }}
       >
         <button
+          style={{ ...btnBase, backgroundColor: 'rgba(231, 76, 60, 0.6)' }}
+          onTouchStart={() => EventBus.emit('mobile-shoot')}
+        >
+          ❤
+        </button>
+        <button
           style={{ ...btnBase, backgroundColor: 'rgba(74, 124, 89, 0.6)' }}
           onTouchStart={() => EventBus.emit('mobile-interact')}
         >

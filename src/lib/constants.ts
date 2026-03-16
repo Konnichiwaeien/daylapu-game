@@ -31,20 +31,26 @@ export const PLAYER = {
   speed: 200,
   jumpForce: -400,
   gravity: 800,
-  width: 28,
-  height: 44,
+  width: 40,
+  height: 56,
   maxHealth: 3,
+} as const;
+
+// Враги
+export const ENEMY = {
+  width: 36,
+  height: 52,
 } as const;
 
 // Настройки животных
 export const ANIMAL = {
-  width: 20,
-  height: 16,
+  width: 28,
+  height: 22,
   rescueTime: 1000, // ms
 } as const;
 
 // Монеты
 export const COIN = {
-  size: 16,
+  size: 20,
   value: 10,
 } as const;

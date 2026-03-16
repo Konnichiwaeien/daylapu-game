@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --turbopack --use-npm)",
+      "Read(//c/Development/Crafting/**)",
+      "Bash(npx create-next-app@latest daylapu-temp --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --turbopack --use-npm)",
+      "Bash(npx create-next-app@latest daylapu-temp --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --turbopack --use-npm --no-react-compiler)",
+      "Bash(cp -r /c/Development/Crafting/daylapu-temp/* /c/Development/Crafting/daylapu/)",
+      "Bash(cp /c/Development/Crafting/daylapu-temp/.gitignore /c/Development/Crafting/daylapu/)",
+      "Bash(cp /c/Development/Crafting/daylapu-temp/.eslintrc.json /c/Development/Crafting/daylapu/)",
+      "Bash(cp -r /c/Development/Crafting/daylapu-temp/.git /c/Development/Crafting/daylapu/)",
+      "Bash(npm install:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(node -e \"const p = require\\(''phaser''\\); console.log\\(typeof p, Object.keys\\(p\\).slice\\(0, 10\\)\\)\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

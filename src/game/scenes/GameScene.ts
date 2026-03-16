@@ -205,9 +205,10 @@ export class GameScene extends Phaser.Scene {
     EventBus.on('mobile-right-up', () => { if (this.player) this.player.mobileRight = false; });
     EventBus.on('mobile-jump', () => { if (this.player) this.player.mobileJump = true; this.time.delayedCall(150, () => { if (this.player) this.player.mobileJump = false; }); });
     EventBus.on('mobile-interact', () => { if (this.player) this.player.mobileInteract = true; });
+    EventBus.on('mobile-shoot', () => { if (this.player) this.player.mobileShoot = true; });
   }
 
-  update() {
+  update(_time: number) {
     if (this.isPaused || this.isLevelComplete) return;
 
     this.player.update();
@@ -219,10 +220,24 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
+    // Обновление догхантеров
+    this.dogCatchers.getChildren().forEach((obj) => {
+      const dc = obj as DogCatcher;
+      if (dc.active) dc.update();
+    });
+
+    // Стрельба сердечками
+    if (this.player.wantsShoot()) {
+      this.shootHeart();
+    }
+
     // Проверка близости к животным
     this.animals.getChildren().forEach((obj) => {
       const animal = obj as Animal;
       if (!animal || animal.isRescued || !animal.active || !animal.visible) return;
+
+      // Покачивание
+      animal.updateBob(_time);
 
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, animal.x, animal.y);
       if (dist < 50) {
@@ -360,6 +375,30 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private shootHeart() {
+    const dir = this.player.facingRight ? 1 : -1;
+    const heart = this.hearts.create(
+      this.player.x + dir * 20,
+      this.player.y - 5,
+      'heart_projectile'
+    ) as Phaser.Physics.Arcade.Sprite;
+    heart.setVelocityX(dir * 350);
+    heart.setDepth(5);
+
+    // Удалить через 2 секунды
+    this.time.delayedCall(2000, () => {
+      if (heart.active) heart.destroy();
+    });
+  }
+
+  private heartHitDogCatcher(heartObj: unknown, dcObj: unknown) {
+    const heart = heartObj as Phaser.Physics.Arcade.Sprite;
+    const dc = dcObj as DogCatcher;
+    if (!dc.active) return;
+    heart.destroy();
+    dc.hitByHeart(this);
+  }
+
   private playerDie() {
     this.player.setVelocity(0);
     this.player.setTint(COLORS.red);
@@ -494,6 +533,7 @@ export class GameScene extends Phaser.Scene {
     EventBus.off('mobile-right-up');
     EventBus.off('mobile-jump');
     EventBus.off('mobile-interact');
+    EventBus.off('mobile-shoot');
     this.snowEmitter?.destroy();
     this.timerEvent?.destroy();
   }
