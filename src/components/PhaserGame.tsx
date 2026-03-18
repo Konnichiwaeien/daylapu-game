@@ -29,7 +29,7 @@ export default function PhaserGame() {
       id={GAME_CONTAINER_ID}
       style={{
         width: '100%',
-        maxWidth: '800px',
+        maxWidth: '1040px',
         margin: '0 auto',
         aspectRatio: '4/3',
       }}

@@ -2,13 +2,14 @@
 
 import dynamic from 'next/dynamic';
 import MobileControls from '@/components/MobileControls';
+import RescueModal from '@/components/RescueModal';
 
 const PhaserGame = dynamic(() => import('@/components/PhaserGame'), {
   ssr: false,
   loading: () => (
     <div style={{
       width: '100%',
-      maxWidth: 800,
+      maxWidth: 1040,
       margin: '0 auto',
       aspectRatio: '4/3',
       backgroundColor: '#2C1810',
@@ -36,6 +37,7 @@ export default function GamePage() {
     }}>
       <PhaserGame />
       <MobileControls />
+      <RescueModal />
     </main>
   );
 }

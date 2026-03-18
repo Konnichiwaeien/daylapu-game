@@ -9,12 +9,24 @@ export class PawCoin extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this, true); // static
 
-    // Вращение
+    // Плавный «переворот» монетки (scaleX -1 → 1)
     scene.tweens.add({
       targets: this,
-      angle: 360,
-      duration: 2000,
+      scaleX: { from: 1, to: -1 },
+      duration: 600,
+      yoyo: true,
       repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    // Лёгкое покачивание вверх-вниз
+    scene.tweens.add({
+      targets: this,
+      y: y - 4,
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
     });
   }
 

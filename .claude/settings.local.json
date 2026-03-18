@@ -16,7 +16,10 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(node -e \"const p = require\\(''phaser''\\); console.log\\(typeof p, Object.keys\\(p\\).slice\\(0, 10\\)\\)\")",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(taskkill //f //im node.exe)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

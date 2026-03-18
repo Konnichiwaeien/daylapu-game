@@ -40,14 +40,14 @@ export class LevelSelect extends Phaser.Scene {
 
       // Номер уровня
       this.add.text(GAME_WIDTH / 2 - 210, y - 15, `${level.id}`, {
-        fontSize: '36px',
+        fontSize: '32px',
         color: '#FFFFFF',
         fontStyle: 'bold',
       }).setOrigin(0.5);
 
       // Название
       this.add.text(GAME_WIDTH / 2 - 50, y - 15, level.nameRu, {
-        fontSize: '20px',
+        fontSize: '16px',
         color: '#FFFFFF',
         fontStyle: 'bold',
       }).setOrigin(0, 0.5);
@@ -57,7 +57,8 @@ export class LevelSelect extends Phaser.Scene {
         : level.theme === 'construction' ? 'Вытащить котят из подвала'
         : 'Собрать корм и одеяла в буре';
       this.add.text(GAME_WIDTH / 2 - 50, y + 12, desc, {
-        fontSize: '13px',
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+        fontSize: '14px',
         color: '#E0E0E0',
       }).setOrigin(0, 0.5);
 

@@ -6,9 +6,11 @@ export class Boot extends Phaser.Scene {
     super('Boot');
   }
 
-  create() {
-    // Простой загрузочный экран
+  preload() {
     this.cameras.main.setBackgroundColor(COLORS.dark);
+  }
+
+  create() {
     this.scene.start('Preloader');
   }
 }

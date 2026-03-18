@@ -31,5 +31,6 @@ class SimpleEventEmitter {
   }
 }
 
-// Мост между React и Phaser
+// Мост между React и Phaser (внутренняя коммуникация Phaser)
+// Для React↔Phaser используем window CustomEvent
 export const EventBus = new SimpleEventEmitter();

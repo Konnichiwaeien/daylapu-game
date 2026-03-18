@@ -12,7 +12,7 @@ export class MainMenu extends Phaser.Scene {
 
     // Заголовок
     this.add.text(GAME_WIDTH / 2, 120, 'МИССИЯ:', {
-      fontSize: '28px',
+      fontSize: '24px',
       color: '#8B6914',
       fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -39,7 +39,7 @@ export class MainMenu extends Phaser.Scene {
 
     // Кнопка "Играть"
     this.createButton(GAME_WIDTH / 2, 380, 'ИГРАТЬ', () => {
-      this.scene.start('LevelSelect');
+      this.scene.start('CharacterSelect');
     });
 
     // Кнопка "Коллекция"
@@ -49,7 +49,7 @@ export class MainMenu extends Phaser.Scene {
 
     // Версия
     this.add.text(GAME_WIDTH / 2, 560, 'Благотворительный фонд «Дай лапу» — Сургут', {
-      fontSize: '11px',
+      fontSize: '8px',
       color: '#8B6914',
     }).setOrigin(0.5);
 
@@ -64,7 +64,7 @@ export class MainMenu extends Phaser.Scene {
       .on('pointerdown', onClick);
 
     this.add.text(x, y, text, {
-      fontSize: '18px',
+      fontSize: '16px',
       color: '#FFFFFF',
       fontStyle: 'bold',
     }).setOrigin(0.5);

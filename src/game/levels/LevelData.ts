@@ -10,12 +10,23 @@ export interface PlatformData {
   texture?: string;
 }
 
+export interface AnimalProfile {
+  breed: string;
+  color: string;
+  age: string;
+  story: string;
+  needs: string;
+  goalAmount: number;
+  currentAmount: number;
+}
+
 export interface AnimalSpawn {
   id: string;
   x: number;
   y: number;
   type: 'puppy' | 'kitten';
   name: string;
+  profile?: AnimalProfile;
 }
 
 export interface CoinSpawn {
@@ -24,7 +35,7 @@ export interface CoinSpawn {
 }
 
 export interface ObstacleData {
-  type: 'car' | 'falling' | 'coldzone' | 'hatch' | 'dogcatcher';
+  type: 'car' | 'falling' | 'coldzone' | 'hatch' | 'dogcatcher' | 'pigeon' | 'spike';
   x: number;
   y: number;
   width?: number;
@@ -34,6 +45,7 @@ export interface ObstacleData {
   targetHatch?: string;
   hatchId?: string;
   patrolRange?: number;
+  variant?: string; // car color variant: 'red', 'blue', 'yellow', 'white', 'green'
 }
 
 export interface CollectibleData {

@@ -1,9 +1,11 @@
 import * as Phaser from 'phaser';
+import { AnimalProfile } from '../levels/LevelData';
 
 export class Animal extends Phaser.Physics.Arcade.Sprite {
   animalId: string;
   animalType: 'puppy' | 'kitten';
   animalName: string;
+  animalProfile?: AnimalProfile;
   isRescued: boolean = false;
   private rescueIndicator: Phaser.GameObjects.Text | null = null;
   private bobOffset: number = 0;
@@ -15,21 +17,23 @@ export class Animal extends Phaser.Physics.Arcade.Sprite {
     y: number,
     type: 'puppy' | 'kitten',
     id: string,
-    name: string
+    name: string,
+    profile?: AnimalProfile,
   ) {
     const texture = type === 'puppy' ? 'puppy' : 'kitten';
     super(scene, x, y, texture);
     this.animalId = id;
     this.animalType = type;
     this.animalName = name;
+    this.animalProfile = profile;
     this.bobBase = y;
 
     scene.add.existing(this);
     scene.physics.add.existing(this, true);
 
     // Подсказка "E"
-    this.rescueIndicator = scene.add.text(x, y - 26, '[E]', {
-      fontSize: '10px',
+    this.rescueIndicator = scene.add.text(x, y - 30, '[E]', {
+      fontSize: '12px',
       color: '#FFD700',
       fontStyle: 'bold',
     }).setOrigin(0.5).setAlpha(0);
@@ -45,7 +49,7 @@ export class Animal extends Phaser.Physics.Arcade.Sprite {
   showRescueHint() {
     if (!this.isRescued && this.rescueIndicator) {
       this.rescueIndicator.setAlpha(1);
-      this.rescueIndicator.setPosition(this.x, this.y - 20);
+      this.rescueIndicator.setPosition(this.x, this.y - 28);
     }
   }
 

@@ -12,30 +12,30 @@ interface LevelCompleteData {
 }
 
 export class LevelComplete extends Phaser.Scene {
-  private data!: LevelCompleteData;
+  private levelData!: LevelCompleteData;
 
   constructor() {
     super('LevelComplete');
   }
 
   init(data: LevelCompleteData) {
-    this.data = data;
+    this.levelData = data;
   }
 
   create() {
-    const d = this.data;
+    const d = this.levelData;
     const level = getLevel(d.levelId);
     this.cameras.main.setBackgroundColor(COLORS.dark);
 
     // Заголовок
     this.add.text(GAME_WIDTH / 2, 60, 'УРОВЕНЬ ПРОЙДЕН!', {
-      fontSize: '36px',
+      fontSize: '32px',
       color: '#FFD700',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
     this.add.text(GAME_WIDTH / 2, 105, level?.nameRu || '', {
-      fontSize: '18px',
+      fontSize: '16px',
       color: '#D4A843',
     }).setOrigin(0.5);
 
@@ -50,11 +50,11 @@ export class LevelComplete extends Phaser.Scene {
     stats.forEach((stat, i) => {
       const y = 170 + i * 50;
       this.add.text(GAME_WIDTH / 2 - 150, y, `${stat.icon} ${stat.label}`, {
-        fontSize: '18px',
+        fontSize: '16px',
         color: '#F5E6CC',
       });
       this.add.text(GAME_WIDTH / 2 + 150, y, stat.value, {
-        fontSize: '22px',
+        fontSize: '24px',
         color: '#FFD700',
         fontStyle: 'bold',
       }).setOrigin(1, 0);
@@ -67,11 +67,11 @@ export class LevelComplete extends Phaser.Scene {
 
     // Реальная информация (placeholder)
     this.add.text(GAME_WIDTH / 2, 415, 'В реальности фонд «Дай лапу» спасает', {
-      fontSize: '14px',
+      fontSize: '16px',
       color: '#A0A0A0',
     }).setOrigin(0.5);
     this.add.text(GAME_WIDTH / 2, 435, 'сотни животных каждый год в Сургуте!', {
-      fontSize: '14px',
+      fontSize: '16px',
       color: '#A0A0A0',
     }).setOrigin(0.5);
 

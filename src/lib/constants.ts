@@ -21,7 +21,6 @@ export const CSS_COLORS = {
   dark: '#2C1810',
 } as const;
 
-// Размеры игры
 export const GAME_WIDTH = 800;
 export const GAME_HEIGHT = 600;
 export const TILE_SIZE = 32;
@@ -29,28 +28,28 @@ export const TILE_SIZE = 32;
 // Физика игрока
 export const PLAYER = {
   speed: 200,
-  jumpForce: -400,
+  jumpForce: -480,
   gravity: 800,
-  width: 40,
-  height: 56,
+  width: 48,
+  height: 64,
   maxHealth: 3,
 } as const;
 
 // Враги
 export const ENEMY = {
-  width: 36,
-  height: 52,
+  width: 42,
+  height: 58,
 } as const;
 
 // Настройки животных
 export const ANIMAL = {
-  width: 28,
-  height: 22,
+  width: 48,
+  height: 40,
   rescueTime: 1000, // ms
 } as const;
 
 // Монеты
 export const COIN = {
-  size: 20,
+  size: 22,
   value: 10,
 } as const;

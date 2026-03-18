@@ -3,13 +3,14 @@ import { COLORS, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, COIN } from '@/lib/constant
 import { Player } from '../entities/Player';
 import { Animal } from '../entities/Animal';
 import { PawCoin } from '../entities/PawCoin';
-import { Car, FallingObject, ColdZone, Hatch } from '../entities/Obstacle';
+import { Car, FallingObject, ColdZone, Hatch, Pigeon } from '../entities/Obstacle';
 import { DogCatcher } from '../entities/DogCatcher';
 import { getLevel } from '../levels';
 import { LevelData, ObstacleData } from '../levels/LevelData';
 import { completeLevel, addCoins, RescuedAnimal } from '../utils/SaveManager';
 import { EventBus } from '../EventBus';
 import { buildCityBackground, buildConstructionBackground, buildWinterBackground } from '../utils/BackgroundBuilder';
+import { playCoin, playDamage, playRescue, playHeart, playEnemyDeath, playLevelComplete, startMusic, stopMusic } from '../utils/SoundManager';
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -19,6 +20,7 @@ export class GameScene extends Phaser.Scene {
   private obstacles!: Phaser.GameObjects.Group;
   private coldZones: ColdZone[] = [];
   private hatches: Hatch[] = [];
+  private spikes!: Phaser.Physics.Arcade.StaticGroup;
   private dogCatchers!: Phaser.GameObjects.Group;
   private hearts!: Phaser.Physics.Arcade.Group;
   private exitZone!: Phaser.GameObjects.Rectangle;
@@ -57,6 +59,10 @@ export class GameScene extends Phaser.Scene {
     const ld = this.levelData;
     if (!ld) return;
 
+    // Гарантировать что физика не заморожена (после Game Over)
+    this.physics.resume();
+    this.isPaused = false;
+
     // Мир
     this.physics.world.setBounds(0, 0, ld.width, ld.height);
 
@@ -76,15 +82,22 @@ export class GameScene extends Phaser.Scene {
     // Платформы
     this.platforms = this.physics.add.staticGroup();
     for (const p of ld.platforms) {
-      const defaultGround = ld.theme === 'winter' ? 'ground_snow' : 'ground';
-      const texture = p.texture || defaultGround;
+      let texture = p.texture;
+      if (!texture) {
+        if (p.y >= 560) {
+          texture = ld.theme === 'winter' ? 'road_snow' : 'road';
+        } else {
+          texture = ld.theme === 'winter' ? 'ground_snow' : 'ground';
+        }
+      }
       for (let i = 0; i < p.width; i++) {
         this.platforms.create(p.x + i * TILE_SIZE + TILE_SIZE / 2, p.y + TILE_SIZE / 2, texture);
       }
     }
 
-    // Игрок
-    this.player = new Player(this, ld.playerStart.x, ld.playerStart.y);
+    // Игрок — с выбранным персонажем
+    const characterId = this.registry.get('characterId') || 'alexandra';
+    this.player = new Player(this, ld.playerStart.x, ld.playerStart.y, characterId);
     this.physics.add.collider(this.player, this.platforms);
 
     // Камера
@@ -94,7 +107,7 @@ export class GameScene extends Phaser.Scene {
     // Животные
     this.animals = this.add.group();
     for (const a of ld.animals) {
-      const animal = new Animal(this, a.x, a.y, a.type, a.id, a.name);
+      const animal = new Animal(this, a.x, a.y, a.type, a.id, a.name, a.profile);
       this.animals.add(animal);
     }
 
@@ -119,19 +132,20 @@ export class GameScene extends Phaser.Scene {
     this.obstacles = this.add.group();
     this.coldZones = [];
     this.hatches = [];
+    this.spikes = this.physics.add.staticGroup();
     this.dogCatchers = this.add.group();
     this.hearts = this.physics.add.group({ allowGravity: false });
 
     for (const o of ld.obstacles) {
       switch (o.type) {
         case 'car': {
-          const car = new Car(this, o);
+          const car = new Car(this, o as any);
           this.obstacles.add(car);
           this.physics.add.overlap(this.player, car, this.hitObstacle, undefined, this);
           break;
         }
         case 'falling': {
-          const obj = new FallingObject(this, o);
+          const obj = new FallingObject(this, o as any);
           this.obstacles.add(obj);
           this.physics.add.overlap(this.player, obj, this.hitObstacle, undefined, this);
           break;
@@ -142,23 +156,42 @@ export class GameScene extends Phaser.Scene {
           break;
         }
         case 'hatch': {
-          const hatch = new Hatch(this, o);
+          const hatch = new Hatch(this, o as any);
           this.hatches.push(hatch);
           this.physics.add.collider(hatch, this.platforms);
           break;
         }
         case 'dogcatcher': {
           const dc = new DogCatcher(this, o.x, o.y, o.patrolRange || 150, o.speed || 60);
+          dc.setPlayer(this.player);
           this.dogCatchers.add(dc);
           this.physics.add.collider(dc, this.platforms);
           this.physics.add.overlap(this.player, dc, this.hitObstacle, undefined, this);
           break;
         }
+        case 'pigeon': {
+          const pigeon = new Pigeon(this, o as any);
+          this.obstacles.add(pigeon);
+          this.physics.add.overlap(this.player, pigeon, this.hitObstacle, undefined, this);
+          break;
+        }
+        case 'spike': {
+          const spike = this.spikes.create(o.x, o.y, 'spike') as Phaser.Physics.Arcade.Sprite;
+          spike.setOrigin(0.5, 1); // Привязка к низу — ставим на платформу
+          spike.refreshBody();
+          break;
+        }
       }
     }
 
+    // Колья наносят урон
+    this.physics.add.overlap(this.player, this.spikes, this.hitObstacle, undefined, this);
+
     // Сердечки vs догхантеры
     this.physics.add.overlap(this.hearts, this.dogCatchers, this.heartHitDogCatcher, undefined, this);
+
+    // Сердечки vs голуби и другие obstacles
+    this.physics.add.overlap(this.hearts, this.obstacles, this.heartHitObstacle, undefined, this);
 
     // Выход (приют)
     const exitSprite = this.add.sprite(ld.exitPoint.x, ld.exitPoint.y, 'shelter');
@@ -196,6 +229,9 @@ export class GameScene extends Phaser.Scene {
       this.input.keyboard.on('keydown-P', () => this.togglePause());
     }
 
+    // Музыка
+    startMusic();
+
     EventBus.emit('current-scene-ready', this);
 
     // Мобильное управление через EventBus
@@ -215,7 +251,7 @@ export class GameScene extends Phaser.Scene {
 
     // Обновление препятствий
     this.obstacles.getChildren().forEach((obj) => {
-      if (obj instanceof Car || obj instanceof FallingObject) {
+      if (obj instanceof Car || obj instanceof FallingObject || obj instanceof Pigeon) {
         obj.update();
       }
     });
@@ -245,7 +281,19 @@ export class GameScene extends Phaser.Scene {
         if (this.player.wantsInteract()) {
           animal.rescue(this);
           this.player.rescueAnimal();
+          playRescue();
           this.updateHUD();
+
+          // Показать модальное окно с профилем питомца
+          window.dispatchEvent(new CustomEvent('animal-rescued', {
+            detail: {
+              name: animal.animalName,
+              type: animal.animalType,
+              profile: animal.animalProfile,
+            },
+          }));
+          // Пауза игры пока модал открыт
+          this.pauseForModal();
         }
       } else {
         animal.hideRescueHint();
@@ -275,7 +323,7 @@ export class GameScene extends Phaser.Scene {
         // Замедление
         this.player.setVelocityX(this.player.body!.velocity.x * 0.6);
         // Периодический урон
-        if (!this.player.isInvincible && Math.random() < 0.01) {
+        if (!this.isPaused && !this.player.isInvincible && Math.random() < 0.01) {
           this.player.takeDamage();
           this.updateHUD();
           if (this.player.isDead()) {
@@ -286,7 +334,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Падение в пропасть
-    if (this.player.y > this.levelData.height - 10) {
+    if (this.player.y > this.levelData.height - 10 && !this.isPaused) {
       this.playerDie();
     }
   }
@@ -298,9 +346,10 @@ export class GameScene extends Phaser.Scene {
     if (collectibleType) {
       // Это корм или одеяло
       this.collectiblesCount++;
+      playCoin();
       const label = collectibleType === 'food' ? 'Корм!' : 'Одеяло!';
       const text = this.add.text(obj.x, obj.y - 10, label, {
-        fontSize: '14px',
+        fontSize: '16px',
         color: '#FFD700',
         fontStyle: 'bold',
         stroke: '#000',
@@ -317,13 +366,25 @@ export class GameScene extends Phaser.Scene {
       this.updateHUD();
     } else if (obj instanceof PawCoin) {
       this.player.collectCoin(obj.value);
+      playCoin();
       obj.collect(this);
       this.updateHUD();
     }
   }
 
-  private hitObstacle() {
+  private hitObstacle(playerObj?: any, obstacleObj?: any) {
+    if (this.isPaused || this.isLevelComplete || this.player.isInvincible) return;
     this.player.takeDamage();
+    playDamage();
+    
+    // Knockback
+    if (obstacleObj && obstacleObj.x !== undefined) {
+      const dir = this.player.x < obstacleObj.x ? -1 : 1;
+      this.player.setVelocity(dir * 250, -300);
+    } else {
+      this.player.setVelocityY(-300);
+    }
+
     this.updateHUD();
     if (this.player.isDead()) {
       this.playerDie();
@@ -346,6 +407,8 @@ export class GameScene extends Phaser.Scene {
 
     this.isLevelComplete = true;
     this.timerEvent?.destroy();
+    stopMusic();
+    playLevelComplete();
 
     // Сохраняем прогресс
     const score = this.player.coins + this.player.rescued * 100 + this.timeLeft * 5;
@@ -376,38 +439,146 @@ export class GameScene extends Phaser.Scene {
   }
 
   private shootHeart() {
+    playHeart();
     const dir = this.player.facingRight ? 1 : -1;
+    const projectileKey = this.player.characterId === 'dmitry' ? 'code_projectile' : 'heart_projectile';
     const heart = this.hearts.create(
       this.player.x + dir * 20,
       this.player.y - 5,
-      'heart_projectile'
+      projectileKey
     ) as Phaser.Physics.Arcade.Sprite;
-    heart.setVelocityX(dir * 350);
+    heart.setVelocityX(dir * (this.player.characterId === 'dmitry' ? 420 : 350));
     heart.setDepth(5);
+    if (this.player.characterId === 'dmitry') heart.setFlipX(dir < 0);
 
     // Удалить через 2 секунды
     this.time.delayedCall(2000, () => {
-      if (heart.active) heart.destroy();
+      if (heart.active) this.killHeart(heart);
     });
   }
 
-  private heartHitDogCatcher(heartObj: unknown, dcObj: unknown) {
+  private killHeart(heart: Phaser.Physics.Arcade.Sprite) {
+    heart.setActive(false);
+    heart.setVisible(false);
+    const b = heart.body as Phaser.Physics.Arcade.Body;
+    if (b) b.enable = false;
+    // Уничтожить в следующем кадре — безопасно
+    this.time.delayedCall(0, () => {
+      if (heart && heart.scene) heart.destroy();
+    });
+  }
+
+  private heartHitObstacle(heartObj: unknown, obstacleObj: unknown) {
     const heart = heartObj as Phaser.Physics.Arcade.Sprite;
-    const dc = dcObj as DogCatcher;
-    if (!dc.active) return;
-    heart.destroy();
+    const obstacle = obstacleObj as Phaser.Physics.Arcade.Sprite;
+    if (!obstacle.active || !heart.active) return;
+    this.killHeart(heart);
+    playEnemyDeath();
+    obstacle.setActive(false);
+    obstacle.setVisible(false);
+    const body = obstacle.body as Phaser.Physics.Arcade.Body;
+    if (body) body.enable = false;
+  }
+
+  private heartHitDogCatcher(obj1: any, obj2: any) {
+    const dc = obj1.hitByHeart ? obj1 : (obj2.hitByHeart ? obj2 : null);
+    const heart = obj1 === dc ? obj2 : obj1;
+
+    if (!dc || !heart) return;
+    if (!dc.active || !heart.active) return;
+    this.killHeart(heart);
+    playEnemyDeath();
     dc.hitByHeart(this);
   }
 
   private playerDie() {
+    if (this.isLevelComplete || this.isPaused) return;
+    this.isPaused = true;
     this.player.setVelocity(0);
     this.player.setTint(COLORS.red);
+    this.player.isInvincible = true; // Навсегда неуязвим при смерти
     this.timerEvent?.destroy();
+    stopMusic();
+    this.physics.pause(); // Остановить всю физику
 
     this.cameras.main.shake(300, 0.01);
-    this.time.delayedCall(1000, () => {
+    this.time.delayedCall(800, () => {
+      this.showGameOver();
+    });
+  }
+
+  private showGameOver() {
+    // Затемнение
+    const overlay = this.add.rectangle(
+      GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.8
+    ).setScrollFactor(0).setDepth(300);
+    overlay.setAlpha(0);
+    this.tweens.add({ targets: overlay, alpha: 1, duration: 500 });
+
+    // Заголовок
+    const title = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 80, 'GAME OVER', {
+      fontFamily: '"Press Start 2P", "Courier New", monospace',
+      fontSize: '32px',
+      color: '#FF4444',
+      stroke: '#000',
+      strokeThickness: 4,
+    }).setScrollFactor(0).setDepth(301).setOrigin(0.5).setAlpha(0);
+
+    // Подзаголовок
+    const subtitle = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30, 'Животные всё ещё ждут помощи...', {
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+      fontSize: '14px',
+      color: '#AAAAAA',
+    }).setScrollFactor(0).setDepth(301).setOrigin(0.5).setAlpha(0);
+
+    // Статистика
+    const stats = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 10, `Спасено: ${this.player.rescued}/${this.levelData.requiredRescues}  |  Лапок: ${this.player.coins}`, {
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+      fontSize: '14px',
+      color: '#D4A843',
+    }).setScrollFactor(0).setDepth(301).setOrigin(0.5).setAlpha(0);
+
+    // Кнопка "Попробовать снова"
+    const retryBtn = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 60, '▸ ПОПРОБОВАТЬ СНОВА', {
+      fontFamily: '"Press Start 2P", "Courier New", monospace',
+      fontSize: '16px',
+      color: '#FFD700',
+      stroke: '#000',
+      strokeThickness: 2,
+      backgroundColor: '#333355',
+      padding: { x: 16, y: 10 },
+    }).setScrollFactor(0).setDepth(301).setOrigin(0.5).setAlpha(0).setInteractive({ useHandCursor: true });
+
+    // Кнопка "К уровням"
+    const menuBtn = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 110, 'К УРОВНЯМ', {
+      fontFamily: '"Press Start 2P", "Courier New", monospace',
+      fontSize: '8px',
+      color: '#888888',
+      stroke: '#000',
+      strokeThickness: 2,
+    }).setScrollFactor(0).setDepth(301).setOrigin(0.5).setAlpha(0).setInteractive({ useHandCursor: true });
+
+    // Анимация появления
+    this.tweens.add({ targets: title, alpha: 1, y: title.y + 10, duration: 600, delay: 200 });
+    this.tweens.add({ targets: subtitle, alpha: 1, duration: 600, delay: 500 });
+    this.tweens.add({ targets: stats, alpha: 1, duration: 600, delay: 700 });
+    this.tweens.add({ targets: retryBtn, alpha: 1, duration: 600, delay: 900 });
+    this.tweens.add({ targets: menuBtn, alpha: 1, duration: 600, delay: 1100 });
+
+    // Hover эффекты
+    retryBtn.on('pointerover', () => retryBtn.setColor('#FFFFFF'));
+    retryBtn.on('pointerout', () => retryBtn.setColor('#FFD700'));
+    menuBtn.on('pointerover', () => menuBtn.setColor('#FFFFFF'));
+    menuBtn.on('pointerout', () => menuBtn.setColor('#888888'));
+
+    // Действия
+    retryBtn.on('pointerdown', () => {
       this.cleanup();
       this.scene.restart({ levelId: this.levelData.id });
+    });
+    menuBtn.on('pointerdown', () => {
+      this.cleanup();
+      this.scene.start('LevelSelect');
     });
   }
 
@@ -432,7 +603,7 @@ export class GameScene extends Phaser.Scene {
     // Таймер (если есть)
     this.hudTimer = this.add.text(GAME_WIDTH - 16, 16, '', {
       ...style,
-      fontSize: '22px',
+      fontSize: '24px',
     }).setScrollFactor(0).setDepth(100).setOrigin(1, 0);
 
     // Collectibles
@@ -440,7 +611,7 @@ export class GameScene extends Phaser.Scene {
 
     // Название уровня
     const levelTitle = this.add.text(GAME_WIDTH / 2, 16, this.levelData.nameRu, {
-      fontSize: '14px',
+      fontSize: '16px',
       color: '#FFD700',
       fontStyle: 'bold',
       stroke: '#000',
@@ -469,7 +640,7 @@ export class GameScene extends Phaser.Scene {
 
   private showMessage(text: string) {
     const msg = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50, text, {
-      fontSize: '20px',
+      fontSize: '16px',
       color: '#FFD700',
       fontStyle: 'bold',
       stroke: '#000',
@@ -510,7 +681,7 @@ export class GameScene extends Phaser.Scene {
       const overlay = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
         .setScrollFactor(0).setDepth(300).setName('pauseOverlay');
       this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 40, 'ПАУЗА', {
-        fontSize: '40px',
+        fontSize: '32px',
         color: '#FFD700',
         fontStyle: 'bold',
       }).setScrollFactor(0).setDepth(301).setOrigin(0.5).setName('pauseText');
@@ -526,7 +697,21 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private pauseForModal() {
+    this.isPaused = true;
+    this.physics.pause();
+
+    const resumeHandler = () => {
+      this.isPaused = false;
+      this.physics.resume();
+      window.removeEventListener('rescue-modal-closed', resumeHandler);
+    };
+    window.addEventListener('rescue-modal-closed', resumeHandler);
+  }
+
   private cleanup() {
+    this.physics.resume(); // Разблокировать физику перед рестартом
+    stopMusic();
     EventBus.off('mobile-left-down');
     EventBus.off('mobile-left-up');
     EventBus.off('mobile-right-down');

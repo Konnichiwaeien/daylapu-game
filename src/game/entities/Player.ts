@@ -1,11 +1,14 @@
 import * as Phaser from 'phaser';
 import { PLAYER, COLORS } from '@/lib/constants';
+import { playJump } from '../utils/SoundManager';
+import type { CharacterId } from '../scenes/CharacterSelect';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   health: number = PLAYER.maxHealth;
   coins: number = 0;
   rescued: number = 0;
   isInvincible: boolean = false;
+  characterId: CharacterId = 'alexandra';
   private invincibleTimer: Phaser.Time.TimerEvent | null = null;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key };
@@ -25,8 +28,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private lastShotTime = 0;
   private shootCooldown = 500;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, 'player_sheet', 0);
+  // Ключи анимаций (зависят от персонажа)
+  private animIdle = 'player-idle';
+  private animWalk = 'player-walk';
+  private animJump = 'player-jump';
+
+  constructor(scene: Phaser.Scene, x: number, y: number, characterId: CharacterId = 'alexandra') {
+    const sheetKey = characterId === 'dmitry' ? 'player2_sheet' : 'player_sheet';
+    super(scene, x, y, sheetKey, 0);
+    this.characterId = characterId;
+
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
@@ -35,30 +46,36 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     body.setSize(PLAYER.width - 8, PLAYER.height - 4);
     body.setGravityY(PLAYER.gravity);
 
+    // Уникальные ключи анимаций для каждого персонажа
+    const prefix = characterId === 'dmitry' ? 'p2' : 'player';
+    this.animIdle = `${prefix}-idle`;
+    this.animWalk = `${prefix}-walk`;
+    this.animJump = `${prefix}-jump`;
+
     // Создаём анимации
-    if (!scene.anims.exists('player-idle')) {
+    if (!scene.anims.exists(this.animIdle)) {
       scene.anims.create({
-        key: 'player-idle',
-        frames: [{ key: 'player_sheet', frame: 0 }],
+        key: this.animIdle,
+        frames: [{ key: sheetKey, frame: 0 }],
         frameRate: 1,
         repeat: -1,
       });
       scene.anims.create({
-        key: 'player-walk',
+        key: this.animWalk,
         frames: [
-          { key: 'player_sheet', frame: 1 },
-          { key: 'player_sheet', frame: 2 },
-          { key: 'player_sheet', frame: 3 },
-          { key: 'player_sheet', frame: 4 },
-          { key: 'player_sheet', frame: 5 },
-          { key: 'player_sheet', frame: 6 },
+          { key: sheetKey, frame: 1 },
+          { key: sheetKey, frame: 2 },
+          { key: sheetKey, frame: 3 },
+          { key: sheetKey, frame: 4 },
+          { key: sheetKey, frame: 5 },
+          { key: sheetKey, frame: 6 },
         ],
         frameRate: 10,
         repeat: -1,
       });
       scene.anims.create({
-        key: 'player-jump',
-        frames: [{ key: 'player_sheet', frame: 7 }],
+        key: this.animJump,
+        frames: [{ key: sheetKey, frame: 7 }],
         frameRate: 1,
         repeat: 0,
       });
@@ -100,15 +117,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     if (jump && onFloor) {
       this.setVelocityY(PLAYER.jumpForce);
+      playJump();
     }
 
     // Анимации
     if (!onFloor) {
-      this.play('player-jump', true);
+      this.play(this.animJump, true);
     } else if (left || right) {
-      this.play('player-walk', true);
+      this.play(this.animWalk, true);
     } else {
-      this.play('player-idle', true);
+      this.play(this.animIdle, true);
     }
 
     // Мигание при неуязвимости

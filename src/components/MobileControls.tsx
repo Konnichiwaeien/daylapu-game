@@ -10,8 +10,8 @@ export default function MobileControls() {
   useEffect(() => {
     setIsMobile(navigator.maxTouchPoints > 0);
 
-    const onSceneReady = (scene: { scene: { key: string } }) => {
-      setIsInGame(scene.scene.key === 'GameScene');
+    const onSceneReady = (scene: any) => {
+      setIsInGame(scene.scene?.key === 'GameScene');
     };
     EventBus.on('current-scene-ready', onSceneReady);
 

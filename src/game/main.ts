@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from '@/lib/constants';
 import { Boot } from './scenes/Boot';
 import { Preloader } from './scenes/Preloader';
 import { MainMenu } from './scenes/MainMenu';
+import { CharacterSelect } from './scenes/CharacterSelect';
 import { LevelSelect } from './scenes/LevelSelect';
 import { GameScene } from './scenes/GameScene';
 import { LevelComplete } from './scenes/LevelComplete';
@@ -25,11 +26,17 @@ export function createGame(parent: string): Phaser.Game {
         debug: false,
       },
     },
-    scene: [Boot, Preloader, MainMenu, LevelSelect, GameScene, LevelComplete],
+    scene: [Preloader, MainMenu, CharacterSelect, LevelSelect, GameScene, LevelComplete],
     pixelArt: true,
     roundPixels: true,
+    autoFocus: true,
+    fps: {
+      forceSetTimeOut: true,
+      target: 60,
+    },
   };
 
+  (config as any).resolution = 2;
   const game = new Phaser.Game(config);
   (window as unknown as Record<string, unknown>).__PHASER_GAME__ = game;
   return game;
