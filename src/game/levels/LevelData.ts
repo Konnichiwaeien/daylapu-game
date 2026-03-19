@@ -49,9 +49,25 @@ export interface ObstacleData {
 }
 
 export interface CollectibleData {
-  type: 'food' | 'blanket';
+  type: 'food' | 'blanket' | 'full_heart' | 'magnet' | 'shield' | 'speed_boost';
   x: number;
   y: number;
+}
+
+export interface MovingPlatformData {
+  x: number;
+  y: number;
+  width: number; // в тайлах
+  texture?: string;
+  rangeX?: number;  // горизонтальный размах (пиксели)
+  rangeY?: number;  // вертикальный размах (пиксели)
+  speed?: number;   // скорость движения
+}
+
+export interface NPCData {
+  x: number;
+  y: number;
+  message: string;
 }
 
 export interface LevelData {
@@ -69,6 +85,8 @@ export interface LevelData {
   coins: CoinSpawn[];
   obstacles: ObstacleData[];
   collectibles?: CollectibleData[];
+  movingPlatforms?: MovingPlatformData[];
+  npcs?: NPCData[];
   timeLimit?: number;
   requiredRescues: number;
   requiredCollectibles?: number;

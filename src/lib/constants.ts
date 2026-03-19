@@ -32,7 +32,7 @@ export const PLAYER = {
   gravity: 800,
   width: 48,
   height: 64,
-  maxHealth: 3,
+  maxHealth: 5,
 } as const;
 
 // Враги

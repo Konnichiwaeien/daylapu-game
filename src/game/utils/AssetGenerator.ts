@@ -846,20 +846,22 @@ function generateObstacles(scene: Phaser.Scene) {
   br.generateTexture('brick', 28, 18);
   br.destroy();
 
-  // --- Люк ---
+  // --- Люк (В перспективе на земле) ---
   const hatch = gfx(scene);
+  hatch.fillStyle(0x333333);
+  hatch.fillEllipse(25, 12, 44, 14); // тень/основание
   hatch.fillStyle(0x555555);
-  hatch.fillCircle(20, 20, 19);
+  hatch.fillEllipse(25, 10, 44, 14);
   hatch.fillStyle(0x444444);
-  hatch.fillCircle(20, 20, 15);
+  hatch.fillEllipse(25, 10, 36, 10);
   hatch.lineStyle(1.5, 0x666666);
-  hatch.strokeCircle(20, 20, 12);
-  hatch.strokeCircle(20, 20, 8);
-  hatch.lineBetween(20, 5, 20, 35);
-  hatch.lineBetween(5, 20, 35, 20);
+  hatch.strokeEllipse(25, 10, 26, 6);
+  // Grid lines
+  hatch.lineBetween(8, 10, 42, 10);
+  hatch.lineBetween(25, 4, 25, 16);
   hatch.fillStyle(0x777777);
-  hatch.fillRect(18, 18, 4, 4);
-  hatch.generateTexture('hatch', 40, 40);
+  hatch.fillRect(23, 9, 4, 2);
+  hatch.generateTexture('hatch', 50, 20);
   hatch.destroy();
 
   // --- Зона холода ---
@@ -1004,6 +1006,76 @@ function generateCollectibles(scene: Phaser.Scene) {
   ht.fillCircle(6, 5, 3);
   ht.generateTexture('heart', 22, 22);
   ht.destroy();
+
+  // --- Пауэрап: Магнит (золотая подкова с линиями) ---
+  const mag = gfx(scene);
+  // Свечение
+  mag.fillStyle(0xffd700, 0.15);
+  mag.fillCircle(14, 14, 14);
+  // Подкова
+  mag.lineStyle(5, 0xdd2222);
+  mag.beginPath();
+  mag.arc(14, 12, 9, Math.PI, 0, false);
+  mag.strokePath();
+  // Ножки
+  mag.fillStyle(0xdd2222);
+  mag.fillRect(5, 11, 5, 12);
+  mag.fillRect(18, 11, 5, 12);
+  // Кончики (полюса)
+  mag.fillStyle(0x4444ff);
+  mag.fillRect(5, 20, 5, 4);
+  mag.fillStyle(0x4444ff);
+  mag.fillRect(18, 20, 5, 4);
+  // Магнитные линии
+  mag.lineStyle(1, 0xffd700, 0.5);
+  mag.beginPath();
+  mag.arc(14, 14, 6, Math.PI * 1.2, Math.PI * 1.8, false);
+  mag.strokePath();
+  mag.generateTexture('powerup_magnet', 28, 28);
+  mag.destroy();
+
+  // --- Пауэрап: Щит (голубой пузырь со звездой) ---
+  const shd = gfx(scene);
+  // Свечение
+  shd.fillStyle(0x44aaff, 0.12);
+  shd.fillCircle(14, 14, 14);
+  // Пузырь
+  shd.lineStyle(2.5, 0x44ccff, 0.9);
+  shd.strokeCircle(14, 14, 11);
+  // Внутренний блик
+  shd.fillStyle(0x88ddff, 0.25);
+  shd.fillCircle(14, 14, 9);
+  // Звезда в центре
+  shd.fillStyle(0xffffff, 0.9);
+  shd.fillTriangle(14, 5, 11, 16, 17, 16);
+  shd.fillTriangle(14, 22, 11, 11, 17, 11);
+  // Блик сверху
+  shd.fillStyle(0xffffff, 0.5);
+  shd.fillCircle(10, 8, 3);
+  shd.generateTexture('powerup_shield', 28, 28);
+  shd.destroy();
+
+  // --- Пауэрап: Ускорение (молния) ---
+  const spd = gfx(scene);
+  // Свечение
+  spd.fillStyle(0xff6600, 0.15);
+  spd.fillCircle(14, 14, 14);
+  // Молния
+  spd.fillStyle(0xffcc00);
+  spd.fillTriangle(16, 1, 6, 14, 14, 14);
+  spd.fillTriangle(12, 14, 22, 14, 11, 27);
+  // Контур
+  spd.lineStyle(1.5, 0xff8800, 0.8);
+  spd.lineBetween(16, 1, 6, 14);
+  spd.lineBetween(6, 14, 14, 14);
+  spd.lineBetween(14, 14, 11, 27);
+  spd.lineBetween(11, 27, 22, 14);
+  spd.lineBetween(22, 14, 12, 14);
+  // Яркий центр
+  spd.fillStyle(0xffee88, 0.6);
+  spd.fillTriangle(15, 6, 9, 14, 14, 14);
+  spd.generateTexture('powerup_speed', 28, 28);
+  spd.destroy();
 }
 
 // ===== ФОНОВЫЕ ОБЪЕКТЫ =====
@@ -1289,6 +1361,44 @@ function generateBackgrounds(scene: Phaser.Scene) {
   pm.fillCircle(8, 8, 2);
   pm.generateTexture('parkmeter', 16, 50);
   pm.destroy();
+
+  // --- NPC: Житель (силуэт, 24x48) ---
+  const npc = gfx(scene);
+  // Тело
+  npc.fillStyle(0x444466);
+  npc.fillRoundedRect(4, 18, 16, 22, 3);
+  // Плечи
+  npc.fillStyle(0x444466);
+  npc.fillRect(0, 20, 24, 4);
+  // Ноги
+  npc.fillStyle(0x333355);
+  npc.fillRect(6, 40, 5, 8);
+  npc.fillRect(13, 40, 5, 8);
+  // Голова
+  npc.fillStyle(0xeeccaa);
+  npc.fillCircle(12, 12, 7);
+  // Волосы / шапка
+  npc.fillStyle(0x333344);
+  npc.fillRoundedRect(5, 4, 14, 7, 4);
+  // Глаза
+  npc.fillStyle(0x222222);
+  npc.fillCircle(9, 12, 1.5);
+  npc.fillCircle(15, 12, 1.5);
+  // Ботинки
+  npc.fillStyle(0x222222);
+  npc.fillRect(5, 46, 6, 2);
+  npc.fillRect(13, 46, 6, 2);
+  npc.generateTexture('npc_citizen', 24, 48);
+  npc.destroy();
+
+  // --- Капля дождя ---
+  const rain = gfx(scene);
+  rain.fillStyle(0x88aacc, 0.6);
+  rain.fillRect(0, 0, 2, 6);
+  rain.fillStyle(0xaaccee, 0.4);
+  rain.fillRect(0, 0, 1, 3);
+  rain.generateTexture('raindrop', 2, 6);
+  rain.destroy();
 }
 
 // ===== ВРАГИ 42x58 =====

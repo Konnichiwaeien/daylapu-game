@@ -1,9 +1,9 @@
 import * as Phaser from 'phaser';
-import { COLORS, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, COIN } from '@/lib/constants';
+import { COLORS, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, COIN, PLAYER } from '@/lib/constants';
 import { Player } from '../entities/Player';
 import { Animal } from '../entities/Animal';
 import { PawCoin } from '../entities/PawCoin';
-import { Car, FallingObject, ColdZone, Hatch, Pigeon } from '../entities/Obstacle';
+import { Car, FallingObject, ColdZone, Hatch, Pigeon, MovingPlatform } from '../entities/Obstacle';
 import { DogCatcher } from '../entities/DogCatcher';
 import { getLevel } from '../levels';
 import { LevelData, ObstacleData } from '../levels/LevelData';
@@ -11,6 +11,7 @@ import { completeLevel, addCoins, RescuedAnimal } from '../utils/SaveManager';
 import { EventBus } from '../EventBus';
 import { buildCityBackground, buildConstructionBackground, buildWinterBackground } from '../utils/BackgroundBuilder';
 import { playCoin, playDamage, playRescue, playHeart, playEnemyDeath, playLevelComplete, startMusic, stopMusic } from '../utils/SoundManager';
+import { checkAchievements, AchievementDef, LevelStats } from '../utils/AchievementManager';
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -30,7 +31,7 @@ export class GameScene extends Phaser.Scene {
   private hudCoins!: Phaser.GameObjects.Text;
   private hudRescued!: Phaser.GameObjects.Text;
   private hudTimer!: Phaser.GameObjects.Text;
-  private timeLeft: number = 0;
+  private timeSpent: number = 0;
   private timerEvent: Phaser.Time.TimerEvent | null = null;
   private collectiblesCount: number = 0;
   private hudCollectibles!: Phaser.GameObjects.Text;
@@ -39,6 +40,24 @@ export class GameScene extends Phaser.Scene {
 
   // Снежинки для зимнего уровня
   private snowEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private lastTeleportTime: number = 0;
+
+  // Пауэрап визуалы
+  private shieldGraphic: Phaser.GameObjects.Graphics | null = null;
+  private speedTrailTimer: number = 0;
+
+  // Достижения — трекинг статистики
+  private achDamageTaken = 0;
+  private achCoinsCollected = 0;
+  private achVisitedSewer = false;
+  private achMinY = 9999;
+  private achUsedHatches = new Set<string>();
+  private achPowerupsCollected = new Set<string>();
+
+  // Движущиеся платформы, NPC, Дождь
+  private movingPlatforms: MovingPlatform[] = [];
+  private npcSprites: { sprite: Phaser.GameObjects.Sprite; message: string; bubble: Phaser.GameObjects.Container | null }[] = [];
+  private rainEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
 
   constructor() {
     super('GameScene');
@@ -90,9 +109,18 @@ export class GameScene extends Phaser.Scene {
           texture = ld.theme === 'winter' ? 'ground_snow' : 'ground';
         }
       }
+      
+      // Визуально отрисовываем тайлы
       for (let i = 0; i < p.width; i++) {
-        this.platforms.create(p.x + i * TILE_SIZE + TILE_SIZE / 2, p.y + TILE_SIZE / 2, texture);
+        this.add.image(p.x + i * TILE_SIZE + TILE_SIZE / 2, p.y + TILE_SIZE / 2, texture);
       }
+      
+      // Физически создаем единую невидимую ЗОНУ на всю ширину платформы
+      // Это полностью устраняет баги застревания на стыках тайлов
+      const pWidth = p.width * TILE_SIZE;
+      const zone = this.add.zone(p.x + pWidth / 2, p.y + TILE_SIZE / 2, pWidth, TILE_SIZE);
+      this.physics.add.existing(zone, true);
+      this.platforms.add(zone);
     }
 
     // Игрок — с выбранным персонажем
@@ -100,9 +128,9 @@ export class GameScene extends Phaser.Scene {
     this.player = new Player(this, ld.playerStart.x, ld.playerStart.y, characterId);
     this.physics.add.collider(this.player, this.platforms);
 
-    // Камера
+    // Камера — начальные границы (улица, от 0 до 600)
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-    this.cameras.main.setBounds(0, 0, ld.width, ld.height);
+    this.cameras.main.setBounds(0, 0, ld.width, 600);
 
     // Животные
     this.animals = this.add.group();
@@ -119,10 +147,16 @@ export class GameScene extends Phaser.Scene {
     }
     this.physics.add.overlap(this.player, this.coins, this.collectCoin, undefined, this);
 
-    // Collectibles (корм, одеяла — уровень 3)
+    // Collectibles (корм, одеяла, сердечки, пауэрапы)
     if (ld.collectibles) {
       for (const c of ld.collectibles) {
-        const sprite = this.physics.add.staticSprite(c.x, c.y, c.type === 'food' ? 'food' : 'blanket');
+        let tex = 'food';
+        if (c.type === 'blanket') tex = 'blanket';
+        if (c.type === 'full_heart') tex = 'heart';
+        if (c.type === 'magnet') tex = 'powerup_magnet';
+        if (c.type === 'shield') tex = 'powerup_shield';
+        if (c.type === 'speed_boost') tex = 'powerup_speed';
+        const sprite = this.physics.add.staticSprite(c.x, c.y, tex);
         sprite.setData('collectibleType', c.type);
         this.coins.add(sprite); // Используем ту же группу для overlap
       }
@@ -204,21 +238,42 @@ export class GameScene extends Phaser.Scene {
       this.createSnowEffect();
     }
 
-    // Таймер (уровень 3)
-    if (ld.timeLimit) {
-      this.timeLeft = ld.timeLimit;
-      this.timerEvent = this.time.addEvent({
-        delay: 1000,
-        callback: () => {
-          this.timeLeft--;
-          this.updateHUD();
-          if (this.timeLeft <= 0) {
-            this.playerDie();
-          }
-        },
-        loop: true,
-      });
+    // Дождь для городского уровня
+    if (ld.theme === 'city') {
+      this.createRainEffect();
     }
+
+    // Движущиеся платформы
+    if (ld.movingPlatforms) {
+      for (const mp of ld.movingPlatforms) {
+        const tex = mp.texture || 'ground';
+        const platform = new MovingPlatform(
+          this, mp.x, mp.y, mp.width, tex,
+          mp.rangeX || 0, mp.rangeY || 0, mp.speed || 1
+        );
+        this.movingPlatforms.push(platform);
+        this.physics.add.collider(this.player, platform);
+      }
+    }
+
+    // NPC-подсказки
+    if (ld.npcs) {
+      for (const npcData of ld.npcs) {
+        const sprite = this.add.sprite(npcData.x, npcData.y, 'npc_citizen').setOrigin(0.5, 1);
+        this.npcSprites.push({ sprite, message: npcData.message, bubble: null });
+      }
+    }
+
+    // Таймер 
+    this.timeSpent = 0;
+    this.timerEvent = this.time.addEvent({
+      delay: 1000,
+      callback: () => {
+        this.timeSpent++;
+        this.updateHUD();
+      },
+      loop: true,
+    });
 
     // HUD
     this.createHUD();
@@ -233,6 +288,26 @@ export class GameScene extends Phaser.Scene {
     startMusic();
 
     EventBus.emit('current-scene-ready', this);
+
+    // Модалка с описанием миссии
+    window.dispatchEvent(new CustomEvent('mission-briefing', {
+      detail: {
+        levelId: ld.id,
+        levelName: ld.nameRu,
+        theme: ld.theme,
+        requiredRescues: ld.requiredRescues,
+        requiredCollectibles: ld.requiredCollectibles,
+        timeLimit: ld.timeLimit,
+      },
+    }));
+    this.isPaused = true;
+    this.physics.pause();
+    const briefingHandler = () => {
+      this.isPaused = false;
+      this.physics.resume();
+      window.removeEventListener('mission-briefing-closed', briefingHandler);
+    };
+    window.addEventListener('mission-briefing-closed', briefingHandler);
 
     // Мобильное управление через EventBus
     EventBus.on('mobile-left-down', () => { if (this.player) this.player.mobileLeft = true; });
@@ -249,12 +324,67 @@ export class GameScene extends Phaser.Scene {
 
     this.player.update();
 
+    // Трекинг минимальной высоты (для достижения Король крыш)
+    if (this.player.y < this.achMinY) {
+      this.achMinY = this.player.y;
+    }
+
+    // === MARIO-STYLE CAMERA ROOMS ===
+    const cam = this.cameras.main;
+    const currentBounds = cam.getBounds();
+    
+    // Если игрок на улице (верхняя половина уровня)
+    if (this.player.y < 600) {
+      // Чтобы не вызывать setBounds каждый кадр, проверяем текущие
+      if (currentBounds.y !== 0 || currentBounds.height !== 600) {
+        cam.setBounds(0, 0, this.levelData.width, 600);
+      }
+    } 
+    // Если игрок в канализации (нижняя половина уровня)
+    else {
+      if (currentBounds.y !== 600 || currentBounds.height !== 600) {
+        cam.setBounds(0, 600, this.levelData.width, 600);
+      }
+    }
+
     // Обновление препятствий
     this.obstacles.getChildren().forEach((obj) => {
       if (obj instanceof Car || obj instanceof FallingObject || obj instanceof Pigeon) {
         obj.update();
       }
     });
+
+    // Обновление движущихся платформ
+    for (const mp of this.movingPlatforms) {
+      mp.update();
+      // Двигаем игрока вместе с платформой, если он стоит на ней
+      const dx = (mp as any)._dx || 0;
+      const dy = (mp as any)._dy || 0;
+      if (dx !== 0 || dy !== 0) {
+        const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
+        if (playerBody.touching.down) {
+          // Проверяем: стоит ли игрок НА этой платформе
+          const mpBody = mp.body as Phaser.Physics.Arcade.StaticBody;
+          const onPlatform = Math.abs(this.player.x - mp.x) < mpBody.width / 2 + 16
+            && Math.abs((this.player.y + playerBody.height / 2) - (mp.y - mpBody.height / 2)) < 10;
+          if (onPlatform) {
+            this.player.x += dx;
+            this.player.y += dy;
+          }
+        }
+      }
+    }
+
+    // NPC — показ пузырьков при приближении
+    for (const npc of this.npcSprites) {
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, npc.sprite.x, npc.sprite.y);
+      if (dist < 80 && !npc.bubble) {
+        npc.bubble = this.createSpeechBubble(npc.sprite.x, npc.sprite.y - 56, npc.message);
+      } else if (dist >= 80 && npc.bubble) {
+        npc.bubble.destroy();
+        npc.bubble = null;
+      }
+    }
 
     // Обновление догхантеров
     this.dogCatchers.getChildren().forEach((obj) => {
@@ -294,6 +424,7 @@ export class GameScene extends Phaser.Scene {
           }));
           // Пауза игры пока модал открыт
           this.pauseForModal();
+          this.checkMidGameAchievements();
         }
       } else {
         animal.hideRescueHint();
@@ -302,13 +433,19 @@ export class GameScene extends Phaser.Scene {
 
     // Проверка люков
     this.hatches.forEach(hatch => {
-      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, hatch.x, hatch.y);
-      if (dist < 40) {
+      const dx = Math.abs(this.player.x - hatch.x);
+      const dy = Math.abs(this.player.y - hatch.y);
+      if (dx < 30 && dy < 60) {
         hatch.showHint();
-        if (this.player.wantsInteract()) {
+        if (this.player.wantsInteract() && _time > this.lastTeleportTime + 500) {
           const target = this.hatches.find(h => h.hatchId === hatch.targetHatchId);
           if (target) {
             this.player.setPosition(target.x, target.y - 40);
+            this.lastTeleportTime = _time;
+            this.achUsedHatches.add(hatch.hatchId);
+            // Проверка: попал ли в канализацию
+            if (target.y > 600) this.achVisitedSewer = true;
+            this.checkMidGameAchievements();
           }
         }
       } else {
@@ -337,6 +474,147 @@ export class GameScene extends Phaser.Scene {
     if (this.player.y > this.levelData.height - 10 && !this.isPaused) {
       this.playerDie();
     }
+
+    // === ПАУЭРАП ВИЗУАЛЫ ===
+
+    // Магнит — притягивает монеты (двигаем позицию напрямую, т.к. coins — staticGroup)
+    if (this.player.hasMagnet) {
+      this.coins.getChildren().forEach((coinObj) => {
+        const coin = coinObj as Phaser.Physics.Arcade.Sprite;
+        if (!coin.active) return;
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, coin.x, coin.y);
+        if (dist < 200 && dist > 5) {
+          const angle = Phaser.Math.Angle.Between(coin.x, coin.y, this.player.x, this.player.y);
+          const pull = Math.min(8, 200 / dist * 3);
+          coin.x += Math.cos(angle) * pull;
+          coin.y += Math.sin(angle) * pull;
+          // Обновляем статическое тело
+          if (coin.body) {
+            (coin.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
+          }
+        }
+      });
+    }
+
+    // Щит — мигающий голубой пузырь
+    if (this.player.hasShield) {
+      if (!this.shieldGraphic) {
+        this.shieldGraphic = this.add.graphics().setDepth(200);
+      }
+      this.shieldGraphic.clear();
+      const pulse = 0.8 + Math.sin(_time * 0.008) * 0.2;
+      this.shieldGraphic.lineStyle(2, 0x44ccff, pulse);
+      this.shieldGraphic.strokeCircle(this.player.x, this.player.y, 28);
+      this.shieldGraphic.fillStyle(0x44ccff, 0.08);
+      this.shieldGraphic.fillCircle(this.player.x, this.player.y, 28);
+    } else if (this.shieldGraphic) {
+      this.shieldGraphic.destroy();
+      this.shieldGraphic = null;
+    }
+
+    // Ускорение — огненный шлейф
+    if (this.player.hasSpeedBoost) {
+      this.speedTrailTimer++;
+      if (this.speedTrailTimer % 3 === 0) {
+        const trail = this.add.circle(
+          this.player.x + Phaser.Math.Between(-5, 5),
+          this.player.y + 20,
+          Phaser.Math.Between(3, 7),
+          Phaser.Math.Between(0, 1) ? 0xff6600 : 0xffcc00,
+          0.7
+        ).setDepth(190);
+        this.tweens.add({
+          targets: trail,
+          alpha: 0,
+          scale: 0.1,
+          y: trail.y + 15,
+          duration: 300,
+          onComplete: () => trail.destroy()
+        });
+      }
+    } else {
+      this.speedTrailTimer = 0;
+    }
+  }
+
+  private showPowerupLabel(x: number, y: number, label: string, color: string) {
+    const text = this.add.text(x, y - 20, label, {
+      fontSize: '18px',
+      color: color,
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(300);
+    this.tweens.add({
+      targets: text,
+      y: text.y - 40,
+      alpha: 0,
+      scale: 1.5,
+      duration: 1000,
+      onComplete: () => text.destroy(),
+    });
+  }
+
+  private checkMidGameAchievements() {
+    const stats: LevelStats = {
+      coinsCollected: this.achCoinsCollected,
+      totalCoins: this.levelData.coins.length,
+      rescued: this.player.rescued,
+      requiredRescues: this.levelData.requiredRescues,
+      totalAnimals: this.levelData.animals.length,
+      damageTaken: this.achDamageTaken,
+      timeSpent: this.timeSpent,
+      visitedSewer: this.achVisitedSewer,
+      minY: this.achMinY,
+      usedHatches: this.achUsedHatches,
+      totalHatches: this.hatches.filter(h => h.y < 600).length,
+      powerupsCollected: this.achPowerupsCollected,
+      levelCompleted: false,
+    };
+    const newAchs = checkAchievements(stats);
+    newAchs.forEach((ach, i) => {
+      this.time.delayedCall(i * 1200, () => this.showAchievementPopup(ach));
+    });
+  }
+
+  private showAchievementPopup(ach: AchievementDef) {
+    // Золотой баннер сверху
+    const bg = this.add.graphics().setScrollFactor(0).setDepth(500);
+    bg.fillStyle(0x000000, 0.85);
+    bg.fillRoundedRect(GAME_WIDTH / 2 - 160, -60, 320, 50, 12);
+    bg.lineStyle(2, 0xffd700, 1);
+    bg.strokeRoundedRect(GAME_WIDTH / 2 - 160, -60, 320, 50, 12);
+
+    const txt = this.add.text(GAME_WIDTH / 2, -35, `${ach.icon} ${ach.name}`, {
+      fontSize: '18px',
+      color: '#FFD700',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setScrollFactor(0).setDepth(501).setOrigin(0.5);
+
+    const desc = this.add.text(GAME_WIDTH / 2, -18, ach.description, {
+      fontSize: '11px',
+      color: '#FFFFFF',
+    }).setScrollFactor(0).setDepth(501).setOrigin(0.5);
+
+    // Анимация: выезжает сверху
+    this.tweens.add({
+      targets: [bg, txt, desc],
+      y: '+=80',
+      duration: 400,
+      ease: 'Back.easeOut',
+    });
+    // Уезжает через 2.5 сек
+    this.time.delayedCall(2500, () => {
+      this.tweens.add({
+        targets: [bg, txt, desc],
+        y: '-=80',
+        alpha: 0,
+        duration: 400,
+        onComplete: () => { bg.destroy(); txt.destroy(); desc.destroy(); },
+      });
+    });
   }
 
   private collectCoin(_player: unknown, coinObj: unknown) {
@@ -344,6 +622,48 @@ export class GameScene extends Phaser.Scene {
     const collectibleType = obj.getData('collectibleType');
 
     if (collectibleType) {
+      if (collectibleType === 'full_heart') {
+        this.player.health = PLAYER.maxHealth;
+        playHeart();
+        const flash = this.add.circle(obj.x, obj.y, 20, 0x00ff00, 0.8).setDepth(200);
+        this.tweens.add({
+          targets: flash,
+          scale: 3,
+          alpha: 0,
+          duration: 600,
+          onComplete: () => flash.destroy()
+        });
+        obj.destroy();
+        this.updateHUD();
+        return;
+      }
+
+      // Пауэрапы
+      if (collectibleType === 'magnet') {
+        this.player.activateMagnet(5000);
+        playCoin();
+        this.achPowerupsCollected.add('magnet');
+        this.showPowerupLabel(obj.x, obj.y, '🧲 МАГНИТ!', '#ffd700');
+        obj.destroy();
+        return;
+      }
+      if (collectibleType === 'shield') {
+        this.player.activateShield();
+        playCoin();
+        this.achPowerupsCollected.add('shield');
+        this.showPowerupLabel(obj.x, obj.y, '🛡️ ЩИТ!', '#44ccff');
+        obj.destroy();
+        return;
+      }
+      if (collectibleType === 'speed_boost') {
+        this.player.activateSpeedBoost(3000);
+        playCoin();
+        this.achPowerupsCollected.add('speed_boost');
+        this.showPowerupLabel(obj.x, obj.y, '⚡ УСКОРЕНИЕ!', '#ffcc00');
+        obj.destroy();
+        return;
+      }
+
       // Это корм или одеяло
       this.collectiblesCount++;
       playCoin();
@@ -366,6 +686,7 @@ export class GameScene extends Phaser.Scene {
       this.updateHUD();
     } else if (obj instanceof PawCoin) {
       this.player.collectCoin(obj.value);
+      this.achCoinsCollected++;
       playCoin();
       obj.collect(this);
       this.updateHUD();
@@ -374,6 +695,7 @@ export class GameScene extends Phaser.Scene {
 
   private hitObstacle(playerObj?: any, obstacleObj?: any) {
     if (this.isPaused || this.isLevelComplete || this.player.isInvincible) return;
+    this.achDamageTaken++;
     this.player.takeDamage();
     playDamage();
     
@@ -411,7 +733,7 @@ export class GameScene extends Phaser.Scene {
     playLevelComplete();
 
     // Сохраняем прогресс
-    const score = this.player.coins + this.player.rescued * 100 + this.timeLeft * 5;
+    const score = this.player.coins + this.player.rescued * 100 + Math.max(0, 500 - this.timeSpent * 2);
     const rescuedAnimals: RescuedAnimal[] = [];
     this.animals.getChildren().forEach(obj => {
       const a = obj as Animal;
@@ -429,12 +751,38 @@ export class GameScene extends Phaser.Scene {
     completeLevel(ld.id, score, rescuedAnimals);
     addCoins(this.player.coins);
 
-    this.scene.start('LevelComplete', {
-      levelId: ld.id,
-      score,
-      coins: this.player.coins,
+    // === ПРОВЕРКА ДОСТИЖЕНИЙ ПРИ ЗАВЕРШЕНИИ УРОВНЯ ===
+    const totalHatches = this.hatches.filter(h => h.y < 600).length; // только уличные
+    const stats: LevelStats = {
+      coinsCollected: this.achCoinsCollected,
+      totalCoins: ld.coins.length,
       rescued: this.player.rescued,
-      timeLeft: this.timeLeft,
+      requiredRescues: ld.requiredRescues,
+      totalAnimals: ld.animals.length,
+      damageTaken: this.achDamageTaken,
+      timeSpent: this.timeSpent,
+      visitedSewer: this.achVisitedSewer,
+      minY: this.achMinY,
+      usedHatches: this.achUsedHatches,
+      totalHatches,
+      powerupsCollected: this.achPowerupsCollected,
+      levelCompleted: true,
+    };
+    const newAchs = checkAchievements(stats);
+    // Показываем попапы с небольшой задержкой между ними
+    newAchs.forEach((ach, i) => {
+      this.time.delayedCall(i * 1200, () => this.showAchievementPopup(ach));
+    });
+
+    // Переход с задержкой, чтобы показать тосты
+    this.time.delayedCall(newAchs.length * 1200 + 500, () => {
+      this.scene.start('LevelComplete', {
+        levelId: ld.id,
+        score,
+        coins: this.player.coins,
+        rescued: this.player.rescued,
+        timeSpent: this.timeSpent,
+      });
     });
   }
 
@@ -622,16 +970,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateHUD() {
-    const hearts = '❤️'.repeat(this.player.health) + '🖤'.repeat(Math.max(0, 3 - this.player.health));
+    const hearts = '❤️'.repeat(this.player.health) + '🖤'.repeat(Math.max(0, PLAYER.maxHealth - this.player.health));
     this.hudHealth.setText(hearts);
     this.hudCoins.setText(`🐾 ${this.player.coins}`);
     this.hudRescued.setText(`🐕 ${this.player.rescued}/${this.levelData.requiredRescues}`);
 
-    if (this.levelData.timeLimit) {
-      const color = this.timeLeft <= 15 ? '#FF4444' : '#FFFFFF';
-      this.hudTimer.setColor(color);
-      this.hudTimer.setText(`⏱ ${this.timeLeft}с`);
-    }
+    this.hudTimer.setColor('#FFFFFF');
+    this.hudTimer.setText(`⏱ ${this.timeSpent}с`);
 
     if (this.levelData.requiredCollectibles) {
       this.hudCollectibles.setText(`📦 ${this.collectiblesCount}/${this.levelData.requiredCollectibles}`);
@@ -672,6 +1017,91 @@ export class GameScene extends Phaser.Scene {
       scale: { min: 0.3, max: 1 },
       alpha: { start: 0.8, end: 0 },
     });
+  }
+
+  private createRainEffect() {
+    // Частицы дождя — наклонные капли
+    this.rainEmitter = this.add.particles(0, -20, 'raindrop', {
+      x: { min: 0, max: this.levelData.width + 200 },
+      quantity: 3,
+      frequency: 30,
+      lifespan: 1200,
+      gravityY: 300,
+      speedX: { min: -60, max: -30 },
+      speedY: { min: 250, max: 400 },
+      scale: { min: 0.8, max: 1.5 },
+      alpha: { start: 0.5, end: 0.1 },
+      rotate: { min: 10, max: 20 },
+    });
+    this.rainEmitter.setDepth(95);
+
+    // Лужи на земле с рябью
+    const puddlePositions = [200, 600, 1100, 1700, 2300, 2900, 3500, 4100, 4700, 5300, 5900];
+    for (const px of puddlePositions) {
+      const puddle = this.add.ellipse(px, 565, Phaser.Math.Between(40, 70), 6, 0x3355aa, 0.15);
+      // Рябь — мерцающие круги
+      this.time.addEvent({
+        delay: Phaser.Math.Between(800, 2000),
+        loop: true,
+        callback: () => {
+          if (this.isPaused || this.isLevelComplete) return;
+          const ripple = this.add.circle(
+            px + Phaser.Math.Between(-15, 15), 564,
+            2, 0x88aacc, 0.5
+          );
+          this.tweens.add({
+            targets: ripple,
+            scale: 4,
+            alpha: 0,
+            duration: 600,
+            onComplete: () => ripple.destroy(),
+          });
+        },
+      });
+    }
+  }
+
+  private createSpeechBubble(x: number, y: number, message: string): Phaser.GameObjects.Container {
+    const padding = 8;
+    const maxWidth = 140;
+
+    const text = this.add.text(0, 0, message, {
+      fontSize: '10px',
+      color: '#222222',
+      wordWrap: { width: maxWidth },
+      lineSpacing: 2,
+    });
+
+    const bubbleW = Math.min(text.width + padding * 2, maxWidth + padding * 2);
+    const bubbleH = text.height + padding * 2;
+
+    const bg = this.add.graphics();
+    // Фон пузырька
+    bg.fillStyle(0xffffff, 0.92);
+    bg.fillRoundedRect(-bubbleW / 2, -bubbleH, bubbleW, bubbleH, 8);
+    bg.lineStyle(1.5, 0x666666, 0.6);
+    bg.strokeRoundedRect(-bubbleW / 2, -bubbleH, bubbleW, bubbleH, 8);
+    // Хвостик
+    bg.fillStyle(0xffffff, 0.92);
+    bg.fillTriangle(-5, 0, 5, 0, 0, 8);
+
+    text.setPosition(-text.width / 2, -bubbleH + padding);
+
+    const container = this.add.container(x, y, [bg, text]);
+    container.setDepth(150);
+
+    // Лёгкая появляющаяся анимация
+    container.setAlpha(0);
+    container.setScale(0.5);
+    this.tweens.add({
+      targets: container,
+      alpha: 1,
+      scale: 1,
+      duration: 200,
+      ease: 'Back.easeOut',
+    });
+
+    return container;
   }
 
   private togglePause() {
@@ -720,6 +1150,10 @@ export class GameScene extends Phaser.Scene {
     EventBus.off('mobile-interact');
     EventBus.off('mobile-shoot');
     this.snowEmitter?.destroy();
+    this.rainEmitter?.destroy();
+    this.npcSprites.forEach(npc => npc.bubble?.destroy());
+    this.npcSprites = [];
+    this.movingPlatforms = [];
     this.timerEvent?.destroy();
   }
 

@@ -13,6 +13,7 @@ const level2: LevelData = {
   playerStart: { x: 60, y: 500 },
   exitPoint: { x: 3050, y: 440 },
   requiredRescues: 3,
+  timeLimit: 180, // секунды
   platforms: [
     // Земля
     { x: 0, y: 568, width: 12 },

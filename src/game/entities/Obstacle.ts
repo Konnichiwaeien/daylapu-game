@@ -49,10 +49,13 @@ export class Car extends Phaser.Physics.Arcade.Sprite {
 
     // Машина проехала свой маршрут — плавно уезжает за экран, потом респавн
     const distFromSpawn = Math.abs(this.x - this.spawnX);
-    if (distFromSpawn > this.spawnRange) {
-      // Проверяем что машина уехала в правильном направлении
-      const goingAway = (this.moveDirection === 'right' && this.x > this.spawnX + this.spawnRange)
-        || (this.moveDirection === 'left' && this.x < this.spawnX - this.spawnRange);
+    const cam = this.scene.cameras.main.worldView;
+    const isOffScreen = this.x < cam.left - 150 || this.x > cam.right + 150;
+
+    // Уезжает только если проехала дистанцию И находится за кадром
+    if (distFromSpawn > this.spawnRange && isOffScreen) {
+      const goingAway = (this.moveDirection === 'right' && this.x > this.spawnX)
+        || (this.moveDirection === 'left' && this.x < this.spawnX);
 
       if (goingAway) {
         this.respawning = true;
@@ -60,18 +63,22 @@ export class Car extends Phaser.Physics.Arcade.Sprite {
         this.setActive(false);
         this.setVisible(false);
 
-        // Через паузу — появляется снова с другой стороны
         const delay = Phaser.Math.Between(1500, 4000);
         this.scene.time.delayedCall(delay, () => {
-          // Случайный новый вариант машины
           const newVariant = CAR_VARIANTS[Phaser.Math.Between(0, CAR_VARIANTS.length - 1)];
           this.setTexture(newVariant);
 
-          // Спавн с начальной стороны
-          this.x = this.moveDirection === 'right'
+          let spawnPosX = this.moveDirection === 'right'
             ? this.spawnX - this.spawnRange
             : this.spawnX + this.spawnRange;
 
+          const currentCam = this.scene.cameras.main.worldView;
+          // Гарантируем спавн за кадром!
+          if (spawnPosX > currentCam.left - 150 && spawnPosX < currentCam.right + 150) {
+            spawnPosX = this.moveDirection === 'right' ? currentCam.left - 200 : currentCam.right + 200;
+          }
+
+          this.x = spawnPosX;
           this.setActive(true);
           this.setVisible(true);
           this.respawning = false;
@@ -238,5 +245,56 @@ export class Hatch extends Phaser.Physics.Arcade.Sprite {
   destroy(fromScene?: boolean) {
     this.indicator?.destroy();
     super.destroy(fromScene);
+  }
+}
+
+export class MovingPlatform extends Phaser.GameObjects.Sprite {
+  private platformBody!: Phaser.Physics.Arcade.StaticBody;
+  private prevX: number;
+  private prevY: number;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, width: number, texture: string, rangeX: number, rangeY: number, speed: number) {
+    super(scene, x, y, texture);
+    this.prevX = x;
+    this.prevY = y;
+
+    scene.add.existing(this);
+    scene.physics.add.existing(this, true); // static body
+
+    this.platformBody = this.body as Phaser.Physics.Arcade.StaticBody;
+    this.setDisplaySize(width * 32, 16);
+    this.platformBody.setSize(width * 32, 16);
+    this.platformBody.setOffset(0, 0);
+    this.setOrigin(0.5, 0.5);
+
+    // Tween для плавного движения
+    const duration = (3000 / Math.max(speed, 0.1));
+    const tweenConfig: any = {
+      targets: this,
+      duration,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+    };
+    if (rangeX > 0) tweenConfig.x = x + rangeX;
+    if (rangeY > 0) tweenConfig.y = y + rangeY;
+
+    scene.tweens.add(tweenConfig);
+  }
+
+  update() {
+    // Вычисляем дельту для передачи импульса игроку
+    const dx = this.x - this.prevX;
+    const dy = this.y - this.prevY;
+    this.prevX = this.x;
+    this.prevY = this.y;
+
+    // Синхронизируем статическое тело с позицией спрайта
+    this.platformBody.updateFromGameObject();
+
+    // Если игрок стоит на платформе — двигаем его вместе
+    // Это делается через collider + ручное смещение (см. GameScene)
+    (this as any)._dx = dx;
+    (this as any)._dy = dy;
   }
 }

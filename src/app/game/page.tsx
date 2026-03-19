@@ -3,6 +3,8 @@
 import dynamic from 'next/dynamic';
 import MobileControls from '@/components/MobileControls';
 import RescueModal from '@/components/RescueModal';
+import MissionBriefing from '@/components/MissionBriefing';
+import LeaderboardModal from '@/components/LeaderboardModal';
 
 const PhaserGame = dynamic(() => import('@/components/PhaserGame'), {
   ssr: false,
@@ -38,6 +40,8 @@ export default function GamePage() {
       <PhaserGame />
       <MobileControls />
       <RescueModal />
+      <MissionBriefing />
+      <LeaderboardModal />
     </main>
   );
 }

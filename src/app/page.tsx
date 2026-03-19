@@ -1,6 +1,11 @@
+'use client';
+import { useState } from 'react';
 import Link from 'next/link';
+import AchievementsModal from '@/components/AchievementsModal';
 
 export default function Home() {
+  const [showAch, setShowAch] = useState(false);
+
   return (
     <main
       className="min-h-screen flex flex-col items-center justify-center p-6"
@@ -41,6 +46,24 @@ export default function Home() {
           ИГРАТЬ
         </Link>
 
+        <div className="mt-4">
+          <button
+            onClick={() => setShowAch(true)}
+            style={{
+              backgroundColor: 'transparent',
+              border: '2px solid #D4A843',
+              color: '#D4A843',
+              padding: '10px 24px',
+              borderRadius: 10,
+              fontSize: 16,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+            }}
+          >
+            🏆 Достижения
+          </button>
+        </div>
+
         <div className="mt-12 grid grid-cols-3 gap-6 text-center">
           <div>
             <div className="text-3xl mb-2">🐕</div>
@@ -66,6 +89,8 @@ export default function Home() {
           Благотворительный фонд «Дай лапу» — Сургут
         </p>
       </div>
+
+      {showAch && <AchievementsModal onClose={() => setShowAch(false)} />}
     </main>
   );
 }

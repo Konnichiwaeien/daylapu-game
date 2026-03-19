@@ -1,10 +1,17 @@
 const SAVE_KEY = 'daylapu_save';
 
+export interface LeaderboardEntry {
+  name: string;
+  score: number;
+  date: number;
+}
+
 export interface SaveData {
   completedLevels: number[];
   highScores: Record<number, number>;
   totalCoins: number;
   rescuedAnimals: RescuedAnimal[];
+  leaderboards: Record<number, LeaderboardEntry[]>;
 }
 
 export interface RescuedAnimal {
@@ -20,6 +27,7 @@ const defaultSave: SaveData = {
   highScores: {},
   totalCoins: 0,
   rescuedAnimals: [],
+  leaderboards: {},
 };
 
 export function loadSave(): SaveData {
@@ -27,7 +35,14 @@ export function loadSave(): SaveData {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return { ...defaultSave };
-    return { ...defaultSave, ...JSON.parse(raw) };
+    
+    // Merge with defaultSave to ensure new fields like leaderboards exist
+    const parsed = JSON.parse(raw);
+    return { 
+      ...defaultSave, 
+      ...parsed,
+      leaderboards: parsed.leaderboards || {}
+    };
   } catch {
     return { ...defaultSave };
   }
@@ -60,4 +75,29 @@ export function addCoins(amount: number) {
   data.totalCoins += amount;
   saveSave(data);
   return data;
+}
+
+export function saveLeaderboardEntry(levelId: number, name: string, score: number) {
+  const data = loadSave();
+  if (!data.leaderboards[levelId]) {
+    data.leaderboards[levelId] = [];
+  }
+  
+  data.leaderboards[levelId].push({
+    name,
+    score,
+    date: Date.now()
+  });
+  
+  // Sort descending and keep top 10
+  data.leaderboards[levelId].sort((a, b) => b.score - a.score);
+  data.leaderboards[levelId] = data.leaderboards[levelId].slice(0, 10);
+  
+  saveSave(data);
+  return data.leaderboards[levelId];
+}
+
+export function getLeaderboard(levelId: number): LeaderboardEntry[] {
+  const data = loadSave();
+  return data.leaderboards[levelId] || [];
 }

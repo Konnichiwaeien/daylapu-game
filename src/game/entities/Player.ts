@@ -24,6 +24,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   facingRight = true;
 
+  // Пауэрапы
+  hasMagnet = false;
+  hasShield = false;
+  hasSpeedBoost = false;
+  private magnetTimer: Phaser.Time.TimerEvent | null = null;
+  private speedTimer: Phaser.Time.TimerEvent | null = null;
+
   // Стрельба
   private lastShotTime = 0;
   private shootCooldown = 500;
@@ -43,7 +50,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.setCollideWorldBounds(true);
     const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setSize(PLAYER.width - 8, PLAYER.height - 4);
+    body.setSize(24, 48);
+    body.setOffset(12, 16);
     body.setGravityY(PLAYER.gravity);
 
     // Уникальные ключи анимаций для каждого персонажа
@@ -104,11 +112,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const jump = this.cursors?.up.isDown || this.cursors?.space?.isDown || this.wasd?.W.isDown || this.mobileJump;
 
     if (left) {
-      this.setVelocityX(-PLAYER.speed);
+      const speed = this.hasSpeedBoost ? PLAYER.speed * 2 : PLAYER.speed;
+      this.setVelocityX(-speed);
       this.facingRight = false;
       this.setFlipX(true);
     } else if (right) {
-      this.setVelocityX(PLAYER.speed);
+      const speed = this.hasSpeedBoost ? PLAYER.speed * 2 : PLAYER.speed;
+      this.setVelocityX(speed);
       this.facingRight = true;
       this.setFlipX(false);
     } else {
@@ -157,6 +167,20 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   takeDamage() {
     if (this.isInvincible) return;
 
+    // Щит поглощает удар
+    if (this.hasShield) {
+      this.hasShield = false;
+      this.setTint(0x44ccff);
+      this.scene.time.delayedCall(200, () => this.clearTint());
+      // Короткая неуязвимость после щита
+      this.isInvincible = true;
+      this.invincibleTimer = this.scene.time.delayedCall(800, () => {
+        this.isInvincible = false;
+        this.setAlpha(1);
+      });
+      return;
+    }
+
     this.health--;
     this.isInvincible = true;
 
@@ -168,6 +192,26 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.invincibleTimer = this.scene.time.delayedCall(1500, () => {
       this.isInvincible = false;
       this.setAlpha(1);
+    });
+  }
+
+  activateMagnet(duration = 5000) {
+    this.hasMagnet = true;
+    this.magnetTimer?.destroy();
+    this.magnetTimer = this.scene.time.delayedCall(duration, () => {
+      this.hasMagnet = false;
+    });
+  }
+
+  activateShield() {
+    this.hasShield = true;
+  }
+
+  activateSpeedBoost(duration = 3000) {
+    this.hasSpeedBoost = true;
+    this.speedTimer?.destroy();
+    this.speedTimer = this.scene.time.delayedCall(duration, () => {
+      this.hasSpeedBoost = false;
     });
   }
 
@@ -185,6 +229,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   destroy(fromScene?: boolean) {
     this.invincibleTimer?.destroy();
+    this.magnetTimer?.destroy();
+    this.speedTimer?.destroy();
     super.destroy(fromScene);
   }
 }

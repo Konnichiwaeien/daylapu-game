@@ -10,14 +10,29 @@ const level1: LevelData = {
   nameRu: 'Ночные улицы',
   theme: 'city',
   width: 6400,
-  height: 600,
+  height: 1200,
   bgColor: 0x0a0a1a,
   playerStart: { x: 60, y: 500 },
   exitPoint: { x: 6200, y: 440 },
   requiredRescues: 5,
+  timeLimit: 150, // секунды
   platforms: [
     // === ЗЕМЛЯ (y:568) — машины ездят, игрок может ходить ===
     { x: 0, y: 568, width: 200 },
+
+    // === КАНАЛИЗАЦИЯ (y:1168) — подземный уровень ===
+    { x: 0, y: 1168, width: 200, texture: 'platform_brick' },
+    { x: 500, y: 1050, width: 3, texture: 'platform_metal' },
+    { x: 800, y: 950, width: 4, texture: 'platform_metal' },
+    { x: 1200, y: 1050, width: 5, texture: 'platform_metal' },
+    { x: 1600, y: 900, width: 3, texture: 'platform_metal' },
+    { x: 2000, y: 1050, width: 4, texture: 'platform_metal' },
+    { x: 2500, y: 950, width: 6, texture: 'platform_metal' },
+    { x: 3000, y: 850, width: 3, texture: 'platform_metal' },
+    { x: 3500, y: 1050, width: 5, texture: 'platform_metal' },
+    { x: 4200, y: 950, width: 4, texture: 'platform_metal' },
+    { x: 4800, y: 1050, width: 3, texture: 'platform_metal' },
+    { x: 5300, y: 900, width: 5, texture: 'platform_metal' },
 
     // ==========================================================
     // ЗОНА 1: Разминка — БЕТОН (x: 0–950)
@@ -82,7 +97,9 @@ const level1: LevelData = {
     { x: 4110, y: 370, width: 3, texture: 'platform_metal' },
     { x: 4240, y: 300, width: 3, texture: 'platform_metal' },
     { x: 4370, y: 230, width: 4, texture: 'platform_metal' },
-    { x: 4520, y: 160, width: 6, texture: 'platform_metal' },   // щенок #5 — самый верх!
+    { x: 4520, y: 160, width: 6, texture: 'platform_metal' },
+    { x: 4620, y: 90, width: 3, texture: 'platform_metal' },    // Ещё выше!
+    { x: 4400, y: 20, width: 4, texture: 'platform_metal' },    // Абсолютный пик
     // Спуск
     { x: 4700, y: 240, width: 3, texture: 'platform_metal' },
     { x: 4820, y: 320, width: 3, texture: 'platform_metal' },
@@ -155,7 +172,7 @@ const level1: LevelData = {
       },
     },
     {
-      id: 'puppy5', x: 4580, y: 130, type: 'puppy', name: 'Граф',
+      id: 'puppy5', x: 4450, y: -10, type: 'puppy', name: 'Граф',
       profile: {
         breed: 'Метис овчарки',
         color: 'Чёрно-подпалый',
@@ -166,6 +183,19 @@ const level1: LevelData = {
         currentAmount: 5400,
       },
     },
+    // Новый щенок в канализации
+    {
+      id: 'puppy6', x: 2550, y: 910, type: 'puppy', name: 'Люк',
+      profile: {
+        breed: 'Крысолов',
+        color: 'Серый',
+        age: '~1 год',
+        story: 'Спрятался в канализации от холода. Чуть не простудился.',
+        needs: 'Антибиотики',
+        goalAmount: 5000,
+        currentAmount: 2000,
+      },
+    }
   ],
   coins: [
     // Зона 1 — на платформах
@@ -209,6 +239,39 @@ const level1: LevelData = {
     // Зона 7
     { x: 5780, y: 420 }, { x: 5940, y: 350 },
     { x: 6080, y: 420 }, { x: 6220, y: 420 },
+
+    // Монеты в канализации (y: 1168)
+    { x: 200, y: 1100 }, { x: 250, y: 1100 },
+    { x: 900, y: 1140 }, { x: 950, y: 1140 },
+    { x: 1700, y: 1100 }, { x: 1750, y: 1100 },
+    { x: 2800, y: 1140 }, { x: 2850, y: 1140 },
+    { x: 4500, y: 1100 }, { x: 4550, y: 1100 },
+  ],
+  collectibles: [
+    // Хиллки!
+    { type: 'full_heart', x: 800, y: 200 },
+    { type: 'full_heart', x: 1210, y: 1000 }, // В канализации
+    { type: 'full_heart', x: 2950, y: 180 },
+    { type: 'full_heart', x: 4450, y: -70 }, // На самом пике
+    { type: 'full_heart', x: 5000, y: 1100 }, // В канализации
+
+    // === ПАУЭРАПЫ ===
+    // Магниты — рядом с большими скоплениями монет
+    { type: 'magnet', x: 150, y: 420 },        // Зона 1, начало — обучение
+    { type: 'magnet', x: 2250, y: 240 },       // Зона 3, верхний ярус — много монет
+    { type: 'magnet', x: 4560, y: 100 },       // Зона 5, крыши — куча монет наверху
+    { type: 'magnet', x: 1500, y: 1020 },      // Канализация
+
+    // Щиты — перед опасными участками
+    { type: 'shield', x: 960, y: 420 },        // Перед пожарными лестницами (Зона 2)
+    { type: 'shield', x: 2880, y: 420 },       // Перед стройкой (Зона 4)
+    { type: 'shield', x: 5020, y: 420 },       // Перед промзоной (Зона 6)
+    { type: 'shield', x: 3200, y: 1020 },      // Канализация, перед кислотой
+
+    // Ускорение — на длинных прямых участках
+    { type: 'speed_boost', x: 1920, y: 420 },  // Начало старых дворов (Зона 3)
+    { type: 'speed_boost', x: 3980, y: 420 },  // Начало крыш (Зона 5)
+    { type: 'speed_boost', x: 5740, y: 420 },  // Финальный рывок (Зона 7)
   ],
   obstacles: [
     // === Машины — земля свободна, опасность при ходьбе по низу ===
@@ -224,6 +287,23 @@ const level1: LevelData = {
     { type: 'car', x: 5100, y: 536, speed: 210, direction: 'left', variant: 'green' },
     { type: 'car', x: 5600, y: 536, speed: 190, direction: 'right', variant: 'red' },
     { type: 'car', x: 6000, y: 536, speed: 220, direction: 'left', variant: 'blue' },
+
+    // === Люки (Телепорт в канализацию и обратно) ===
+    { type: 'hatch', x: 600, y: 568, hatchId: 'street1', targetHatch: 'sewer1' },
+    { type: 'hatch', x: 600, y: 1168, hatchId: 'sewer1', targetHatch: 'street1' },
+    { type: 'hatch', x: 4250, y: 568, hatchId: 'street2', targetHatch: 'sewer2' },
+    { type: 'hatch', x: 4250, y: 1168, hatchId: 'sewer2', targetHatch: 'street2' },
+    
+    { type: 'hatch', x: 3800, y: 568, hatchId: 'street3', targetHatch: 'sewer3' },
+    { type: 'hatch', x: 3800, y: 1168, hatchId: 'sewer3', targetHatch: 'street3' },
+    
+    { type: 'hatch', x: 5400, y: 568, hatchId: 'street4', targetHatch: 'sewer4' },
+    { type: 'hatch', x: 5400, y: 1168, hatchId: 'sewer4', targetHatch: 'street4' },
+
+    // Зоны кислоты в канализации
+    { type: 'coldzone', x: 1000, y: 1136, width: 200, height: 60 },
+    { type: 'coldzone', x: 3000, y: 1136, width: 300, height: 60 },
+    { type: 'coldzone', x: 4800, y: 1136, width: 250, height: 60 },
 
     // === Падающие кирпичи — опасность сверху! ===
     // Зона 3: стройка рядом
@@ -304,6 +384,30 @@ const level1: LevelData = {
     { type: 'spike', x: 5772, y: 450 },
     { type: 'spike', x: 5932, y: 380 }, { type: 'spike', x: 5964, y: 380 },
     { type: 'spike', x: 6072, y: 450 },
+  ],
+  movingPlatforms: [
+    // Горизонтальная — перевозит через пропасть (Зона 2)
+    { x: 1050, y: 360, width: 2, rangeX: 80, rangeY: 0, speed: 1.2 },
+    // Вертикальная — лифт на крышу (Зона 3)
+    { x: 2100, y: 350, width: 2, rangeX: 0, rangeY: 80, speed: 1.0 },
+    // Горизонтальная — через опасную зону (Зона 4)
+    { x: 3300, y: 280, width: 2, rangeX: 100, rangeY: 0, speed: 1.5 },
+    // Вертикальная — подъем к секрету (Зона 5)
+    { x: 4600, y: 250, width: 2, rangeX: 0, rangeY: 100, speed: 0.8 },
+    // Диагональная — финальное испытание (Зона 6)
+    { x: 5300, y: 330, width: 2, rangeX: 60, rangeY: 40, speed: 1.3 },
+  ],
+  npcs: [
+    // Зона 1 — обучающий
+    { x: 170, y: 568, message: 'Осторожно, тут машины! Прыгай по платформам наверх.' },
+    // Зона 2 — подсказка о канализации
+    { x: 800, y: 568, message: 'Видишь люк? Там внизу тоже есть щенки!' },
+    // Зона 3 — совет про крыши
+    { x: 2300, y: 568, message: 'На крышах безопаснее, но шипы коварны...' },
+    // Зона 5 — подсказка про пауэрапы
+    { x: 4100, y: 568, message: 'Магнит притянет все монеты! Ищи его.' },
+    // Зона 7 — финал
+    { x: 5800, y: 568, message: 'Приют уже рядом! Все питомцы спасены?' },
   ],
 };
 

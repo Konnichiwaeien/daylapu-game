@@ -8,7 +8,7 @@ interface LevelCompleteData {
   score: number;
   coins: number;
   rescued: number;
-  timeLeft: number;
+  timeSpent: number;
 }
 
 export class LevelComplete extends Phaser.Scene {
@@ -43,7 +43,8 @@ export class LevelComplete extends Phaser.Scene {
     const stats = [
       { label: 'Спасено животных', value: `${d.rescued}`, icon: '🐕' },
       { label: 'Собрано лапок', value: `${d.coins}`, icon: '🐾' },
-      { label: 'Бонус за время', value: `${d.timeLeft * 5}`, icon: '⏱' },
+      { label: 'Затрачено времени', value: `${d.timeSpent}с`, icon: '⏱' },
+      { label: 'Бонус за скорость', value: `${Math.max(0, 500 - d.timeSpent * 2)}`, icon: '⚡' },
       { label: 'Итого', value: `${d.score}`, icon: '⭐' },
     ];
 
@@ -93,6 +94,15 @@ export class LevelComplete extends Phaser.Scene {
 
     EventBus.emit('current-scene-ready', this);
     EventBus.emit('level-complete', d);
+
+    // Вызываем таблицу лидеров
+    window.dispatchEvent(new CustomEvent('show-leaderboard', {
+      detail: {
+        levelId: d.levelId,
+        score: d.score,
+        levelName: level?.nameRu || `Уровень ${d.levelId}`
+      }
+    }));
   }
 
   private createButton(x: number, y: number, text: string, onClick: () => void) {
